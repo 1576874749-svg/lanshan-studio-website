@@ -27,7 +27,9 @@ const app = {
     this.bindTheme();
     this.bindScrollEffects();
     this.bindModals();
+    this.bindClueMagnifier();
     particleLogo.init();
+    projectRipple.init();
     this.routeFromHash(false);
   },
 
@@ -129,25 +131,88 @@ const app = {
       <div class="dept-members"><small>${dept.lead}</small><p>${dept.members.join(" · ")}</p></div>`;
     $$("[data-detail-subteam]").forEach((button) => button.addEventListener("click", () => this.selectDepartment(id, index, button.dataset.detailSubteam)));
     $("[data-detail-department]")?.addEventListener("click", () => this.selectDepartment(id, index));
+    this.syncClueMagnifier();
+  },
+
+  bindClueMagnifier() {
+    const panel = $("#networkPanel");
+    const lens = $("#clueMagnifier");
+    const move = (event) => {
+      if (innerWidth <= 600) return;
+      const rect = panel.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const zoom = 1.48;
+      const radius = lens.offsetWidth / 2;
+      lens.style.left = `${x}px`;
+      lens.style.top = `${y}px`;
+      const clone = $("#clueMagnifierScene").firstElementChild;
+      if (clone) clone.style.transform = `translate(${radius - x * zoom}px,${radius - y * zoom}px) scale(${zoom})`;
+    };
+    panel.addEventListener("pointerenter", (event) => {
+      this.syncClueMagnifier();
+      lens.classList.add("is-visible");
+      move(event);
+    });
+    panel.addEventListener("pointermove", move);
+    panel.addEventListener("pointerleave", () => lens.classList.remove("is-visible"));
+    window.addEventListener("resize", () => this.syncClueMagnifier());
+  },
+
+  syncClueMagnifier() {
+    const panel = $("#networkPanel");
+    const scene = $("#clueBoardScene");
+    const target = $("#clueMagnifierScene");
+    if (!panel || !scene || !target || !panel.clientWidth) return;
+    const clone = scene.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+    clone.style.width = `${panel.clientWidth}px`;
+    clone.style.height = `${panel.clientHeight}px`;
+    target.replaceChildren(clone);
   },
 
   renderProjects() {
     const projects = state.data.projects.filter((project) => state.projectFilter === "all" || project.status === state.projectFilter);
     $("#projectCount").textContent = String(projects.length).padStart(2, "0");
-    $("#projectGrid").innerHTML = projects.map((project) => `
-      <article class="project-card" data-project="${project.id}" tabindex="0">
-        <div class="project-art" style="--project-bg:${project.bg}"><span class="project-glyph">${project.glyph}</span></div>
-        <div class="project-card-content">
-          <div class="project-card-head"><h3>${project.name}</h3><span class="status-badge ${project.status}">${project.statusLabel}</span></div>
-          <p>${project.summary}</p>
-          <div class="project-tags">${project.tech.map((tech) => `<span>${tech}</span>`).join("")}</div>
-        </div>
-      </article>`).join("");
-    $$("[data-project]").forEach((card) => {
-      const open = () => this.openProject(card.dataset.project);
-      card.addEventListener("click", open);
-      card.addEventListener("keydown", (event) => event.key === "Enter" && open());
+    const mobile = innerWidth < 600;
+    const compact = innerWidth < 920;
+    const baseX = mobile ? 50 : compact ? 52 : 64;
+    const positions = projects.map((_, index) => {
+      const angle = -Math.PI / 2 + index / Math.max(projects.length, 1) * Math.PI * 2;
+      const radiusX = mobile ? 35 : compact ? 34 : 22 + (index % 2) * 2;
+      const radiusY = mobile ? 17 : 27 + (index % 2) * 4;
+      return { x: baseX + Math.cos(angle) * radiusX, y: (mobile ? 68 : 56) + Math.sin(angle) * radiusY };
     });
+    $("#projectGrid").innerHTML = projects.map((project, index) => `
+      <button class="project-coordinate" data-project-coordinate="${project.id}" style="--x:${positions[index].x}%;--y:${positions[index].y}%;--delay:${.62 + index * .1}s" aria-label="查看${project.name}">
+        <b>${project.glyph}</b><span>${project.name}</span>
+      </button>`).join("");
+    $$("[data-project-coordinate]").forEach((marker) => {
+      marker.addEventListener("click", () => this.showProjectCoordinate(marker.dataset.projectCoordinate));
+    });
+    $("#projectFloatCard").classList.remove("is-visible");
+  },
+
+  showProjectCoordinate(id) {
+    const project = state.data.projects.find((item) => item.id === id);
+    $$("[data-project-coordinate]").forEach((marker) => marker.classList.toggle("is-active", marker.dataset.projectCoordinate === id));
+    $("#projectFloatCard").innerHTML = `
+      <button class="float-card-close" aria-label="关闭项目介绍">×</button>
+      <small>${project.statusLabel.toUpperCase()} / ${project.year}</small>
+      <h2>${project.name}</h2>
+      <p>${project.description}</p>
+      <div class="project-float-meta">
+        <span>项目状态<b>${project.statusLabel}</b></span>
+        <span>参与部门<b>${project.owner}</b></span>
+      </div>
+      <div class="project-tags">${project.tech.map((tech) => `<span>${tech}</span>`).join("")}</div>`;
+    $("#projectFloatCard").classList.add("is-visible");
+    $(".float-card-close").addEventListener("click", () => {
+      $("#projectFloatCard").classList.remove("is-visible");
+      $$("[data-project-coordinate]").forEach((marker) => marker.classList.remove("is-active"));
+    });
+    projectRipple.pulse();
   },
 
   openProject(id) {
@@ -261,7 +326,9 @@ const app = {
       state.projectFilter = button.dataset.filter;
       $$("#projectTabs button").forEach((item) => item.classList.toggle("is-active", item === button));
       this.renderProjects();
+      projectRipple.pulse();
     }));
+    $("#projectCore").addEventListener("click", () => projectRipple.explode());
     $$("#alumniSwitch button").forEach((button) => button.addEventListener("click", () => {
       state.alumniView = button.dataset.alumniView;
       $$("#alumniSwitch button").forEach((item) => item.classList.toggle("is-active", item === button));
@@ -278,10 +345,11 @@ const app = {
     state.route = route;
     $$(".view").forEach((view) => view.classList.toggle("is-active", view.dataset.view === route));
     $$(".desktop-nav [data-route]").forEach((link) => link.classList.toggle("is-active", link.dataset.route === route));
-    $("#floatingJoin").classList.toggle("is-hidden", route === "join");
+    $("#floatingJoin").classList.toggle("is-hidden", route === "join" || route === "projects");
     if (updateHash) history.pushState(null, "", `#${route}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
     this.toggleMenu(false);
+    if (route === "projects") setTimeout(() => projectRipple.resize(), 80);
   },
 
   routeFromHash(scroll = true) {
@@ -504,6 +572,154 @@ const particleLogo = {
     }
     ctx.globalCompositeOperation="source-over";
     ctx.globalAlpha=1;
+  }
+};
+
+const projectRipple = {
+  canvas: null,
+  ctx: null,
+  width: 0,
+  height: 0,
+  spherePoints: [],
+  transitionStarted: 0,
+  manualPulse: 0,
+  explored: false,
+
+  init() {
+    this.canvas = $("#projectRippleCanvas");
+    this.ctx = this.canvas.getContext("2d");
+    this.makeSphere();
+    this.resize();
+    window.addEventListener("resize", () => this.resize());
+    requestAnimationFrame((time) => this.animate(time));
+  },
+
+  makeSphere() {
+    const count = innerWidth < 620 ? 520 : 1150;
+    this.spherePoints = Array.from({ length: count }, (_, index) => {
+      const y = 1 - index / (count - 1) * 2;
+      const radius = Math.sqrt(Math.max(0, 1 - y * y));
+      const theta = Math.PI * (3 - Math.sqrt(5)) * index;
+      return {
+        x: Math.cos(theta) * radius,
+        y,
+        z: Math.sin(theta) * radius,
+        seed: index * .618 + Math.random() * 2
+      };
+    });
+  },
+
+  resize() {
+    const rect = this.canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const ratio = Math.min(devicePixelRatio, 2);
+    this.canvas.width = Math.round(rect.width * ratio);
+    this.canvas.height = Math.round(rect.height * ratio);
+    this.ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    this.width = rect.width;
+    this.height = rect.height;
+  },
+
+  explode() {
+    if (this.explored) {
+      this.pulse();
+      return;
+    }
+    this.transitionStarted = performance.now();
+    $("#projectExplorer").classList.add("is-launching");
+    setTimeout(() => {
+      this.explored = true;
+      $("#projectExplorer").classList.remove("is-launching");
+      $("#projectExplorer").classList.add("is-explored");
+      this.pulse();
+    }, 760);
+  },
+
+  pulse() {
+    this.manualPulse = performance.now();
+  },
+
+  animate(time) {
+    this.draw(time);
+    requestAnimationFrame((next) => this.animate(next));
+  },
+
+  draw(time) {
+    if (!this.width || !this.height) return;
+    const ctx = this.ctx;
+    const w = this.width;
+    const h = this.height;
+    const cx = w * (w < 600 ? .5 : w < 920 ? .52 : .64);
+    const cy = h * (w < 600 ? .65 : w < 920 ? .59 : .56);
+    const dark = document.body.classList.contains("dark");
+    const color = dark ? "242,248,255" : "72,105,176";
+    ctx.clearRect(0, 0, w, h);
+    ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+
+    const transitionProgress = this.transitionStarted ? Math.min(1, (time - this.transitionStarted) / 1250) : 0;
+    if (!this.explored) {
+      const sphereRadius = Math.min(w, h) * (w < 600 ? .085 : .105);
+      const rotation = time * .00028;
+      const burst = transitionProgress ? Math.sin(Math.min(1, transitionProgress) * Math.PI * .56) : 0;
+      for (const point of this.spherePoints) {
+        const x = point.x * Math.cos(rotation) - point.z * Math.sin(rotation);
+        const z = point.x * Math.sin(rotation) + point.z * Math.cos(rotation);
+        const perspective = 1 / (1.7 - z * .34);
+        const burstAngle = point.seed * 2.399;
+        const burstDistance = burst * Math.min(w, h) * (.22 + point.seed % 1 * .18);
+        const px = cx + x * sphereRadius * perspective + Math.cos(burstAngle) * burstDistance;
+        const py = cy + point.y * sphereRadius * perspective + Math.sin(burstAngle) * burstDistance * .62;
+        const depth = (z + 1) / 2;
+        ctx.globalAlpha = Math.max(0, (1 - transitionProgress) * (.18 + depth * .72));
+        ctx.fillStyle = `rgb(${color})`;
+        ctx.beginPath();
+        ctx.arc(px, py, .55 + depth * 1.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      this.drawRipple(ctx, cx, cy, transitionProgress * Math.min(w, h) * .42, (1 - transitionProgress) * .7, color, time, 0);
+    }
+
+    if (this.explored) {
+      const maxRadius = Math.min(w * (w < 920 ? .42 : .34), h * .47);
+      for (let index = 0; index < 5; index++) {
+        const phase = (time * .00034 + index / 5) % 1;
+        this.drawRipple(ctx, cx, cy, 34 + phase * maxRadius, Math.pow(1 - phase, 1.65) * .56, color, time, index);
+      }
+      ctx.globalAlpha = .65;
+      ctx.fillStyle = `rgb(${color})`;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (this.manualPulse) {
+      const age = (time - this.manualPulse) / 1100;
+      if (age < 1) this.drawRipple(ctx, cx, cy, 22 + age * Math.min(w, h) * .43, Math.pow(1 - age, 1.25) * .92, color, time, 9);
+      else this.manualPulse = 0;
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = "source-over";
+  },
+
+  drawRipple(ctx, cx, cy, radius, alpha, color, time, seed) {
+    if (radius < 2 || alpha <= 0) return;
+    ctx.strokeStyle = `rgba(${color},${alpha * .42})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    const count = Math.max(38, Math.round(radius * .72));
+    ctx.fillStyle = `rgb(${color})`;
+    for (let index = 0; index < count; index++) {
+      const angle = index / count * Math.PI * 2;
+      const jitter = Math.sin(index * 12.37 + seed * 4.1 + time * .001) * 2.3;
+      const px = cx + Math.cos(angle) * (radius + jitter);
+      const py = cy + Math.sin(angle) * (radius + jitter) * .68;
+      ctx.globalAlpha = alpha * (.35 + (index % 7) / 10);
+      ctx.beginPath();
+      ctx.arc(px, py, .45 + (index % 5) * .14, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 };
 

@@ -56,6 +56,7 @@ for (const viewport of [
   await page.waitForTimeout(300);
   await page.screenshot({ path: `qa/${viewport.name}-home.png`, fullPage: true });
   const assetStatus = await page.evaluate(() => fetch("./assets/about-galaxy.jpg").then((response) => response.status));
+  let magnifierVisible = false;
   if (viewport.name === "desktop") {
     await page.locator("#themeToggle").click();
     await page.waitForTimeout(250);
@@ -71,11 +72,16 @@ for (const viewport of [
       await page.waitForTimeout(400);
       await page.locator(`#${id}`).screenshot({ path: `qa/desktop-${id}.png` });
     }
-    await page.locator('.department-node[data-department="research"]').click();
+    await page.locator('#clueBoardScene .department-node[data-department="research"]').click();
     await page.waitForTimeout(200);
-    await page.locator('.subteam-node[data-subteam="backend-python"]').click();
+    await page.locator('#clueBoardScene .subteam-node[data-subteam="backend-python"]').click();
     await page.waitForTimeout(200);
     await page.locator("#departments").screenshot({ path: "qa/desktop-departments-research.png" });
+    const boardBox = await page.locator("#networkPanel").boundingBox();
+    await page.mouse.move(boardBox.x + boardBox.width * .58, boardBox.y + boardBox.height * .52);
+    await page.waitForTimeout(180);
+    magnifierVisible = await page.locator("#clueMagnifier").evaluate((lens) => lens.classList.contains("is-visible"));
+    await page.locator("#networkPanel").screenshot({ path: "qa/desktop-departments-magnifier.png" });
   } else {
     await page.locator("#hero").screenshot({ path: "qa/mobile-hero.png" });
     await page.locator("#departments").scrollIntoViewIfNeeded();
@@ -98,14 +104,24 @@ for (const viewport of [
   }
   await page.evaluate(() => { location.hash = "#projects"; });
   await page.waitForTimeout(500);
-  await page.screenshot({ path: `qa/${viewport.name}-projects.png`, fullPage: true });
-  await page.locator("[data-project]").first().click();
-  await page.waitForTimeout(200);
-  const modalOpen = await page.locator("#projectModal").evaluate((dialog) => dialog.open);
-  const caseSections = await page.locator(".case-study-grid article").count();
-  await page.locator("[data-close-modal]").click();
-  const departmentNames = await page.locator(".department-node").allTextContents();
-  const projectNames = await page.locator(".project-card h3").allTextContents();
+  await page.screenshot({ path: `qa/${viewport.name}-project-sphere.png`, fullPage: true });
+  await page.locator("#projectCore").click({ force: true });
+  await page.waitForTimeout(1500);
+  const coordinateCount = await page.locator("[data-project-coordinate]").count();
+  await page.screenshot({ path: `qa/${viewport.name}-project-ripple.png`, fullPage: true });
+  await page.locator("[data-project-coordinate]").first().click();
+  await page.waitForTimeout(350);
+  const projectFloatVisible = await page.locator("#projectFloatCard").evaluate((card) => card.classList.contains("is-visible"));
+  await page.screenshot({ path: `qa/${viewport.name}-project-detail.png`, fullPage: true });
+  if (viewport.name === "desktop") {
+    await page.locator("#themeToggle").click();
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: "qa/desktop-project-ripple-dark.png", fullPage: true });
+    await page.locator("#themeToggle").click();
+  }
+  await page.locator(".float-card-close").click();
+  const departmentNames = await page.locator("#clueBoardScene .department-node").allTextContents();
+  const projectNames = await page.locator(".project-coordinate span").allTextContents();
   await page.evaluate(() => {
     location.hash = "#alumni";
   });
@@ -121,7 +137,7 @@ for (const viewport of [
   await page.waitForTimeout(500);
   const joinVisible = await page.locator("#joinView").evaluate((view) => view.classList.contains("is-active"));
   await page.screenshot({ path: `qa/${viewport.name}-join.png`, fullPage: true });
-  results.push({ viewport: viewport.name, errors, assetStatus, aboutVisible, modalOpen, caseSections, joinVisible, visibleReveals, departmentNames, projectNames });
+  results.push({ viewport: viewport.name, errors, assetStatus, aboutVisible, magnifierVisible, coordinateCount, projectFloatVisible, joinVisible, visibleReveals, departmentNames, projectNames });
   await page.close();
 }
 await browser.close();
