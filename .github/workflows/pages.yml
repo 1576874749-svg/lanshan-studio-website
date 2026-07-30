@@ -2,7 +2,8 @@ name: Deploy website to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -21,19 +22,24 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - name: Prepare static site
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Prepare static website
         run: |
-          mkdir _site
-          cp index.html styles.css app.js _site/
-          cp -r data _site/
-          cp -r assets _site/
-      - uses: actions/upload-pages-artifact@v3
+          mkdir -p pages
+          cp index.html app.js styles.css pages/
+          cp -R assets data pages/
+          touch pages/.nojekyll
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
-      - name: Deploy to GitHub Pages
+          path: pages
+
+      - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
