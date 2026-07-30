@@ -106,7 +106,7 @@ for (const viewport of [
   await page.waitForTimeout(500);
   await page.screenshot({ path: `qa/${viewport.name}-project-sphere.png`, fullPage: true });
   await page.locator("#projectCore").click({ force: true });
-  await page.waitForTimeout(1500);
+  await page.waitForTimeout(3200);
   const coordinateCount = await page.locator("[data-project-coordinate]").count();
   await page.screenshot({ path: `qa/${viewport.name}-project-ripple.png`, fullPage: true });
   await page.locator("[data-project-coordinate]").first().click();

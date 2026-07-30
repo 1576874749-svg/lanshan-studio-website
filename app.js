@@ -7,6 +7,7 @@ const state = {
   route: "home",
   department: null,
   projectFilter: "all",
+  exploredProjects: new Set(),
   alumniView: "timeline",
   qrType: "recruit"
 };
@@ -175,33 +176,33 @@ const app = {
   renderProjects() {
     const projects = state.data.projects.filter((project) => state.projectFilter === "all" || project.status === state.projectFilter);
     $("#projectCount").textContent = String(projects.length).padStart(2, "0");
-    const mobile = innerWidth < 600;
-    const compact = innerWidth < 920;
-    const baseX = mobile ? 50 : compact ? 52 : 64;
-    const positions = projects.map((_, index) => {
-      const angle = -Math.PI / 2 + index / Math.max(projects.length, 1) * Math.PI * 2;
-      const radiusX = mobile ? 35 : compact ? 34 : 22 + (index % 2) * 2;
-      const radiusY = mobile ? 17 : 27 + (index % 2) * 4;
-      return { x: baseX + Math.cos(angle) * radiusX, y: (mobile ? 68 : 56) + Math.sin(angle) * radiusY };
-    });
     $("#projectGrid").innerHTML = projects.map((project, index) => `
-      <button class="project-coordinate" data-project-coordinate="${project.id}" style="--x:${positions[index].x}%;--y:${positions[index].y}%;--delay:${.62 + index * .1}s" aria-label="查看${project.name}">
+      <button class="project-coordinate" data-project-coordinate="${project.id}" data-coordinate-index="${index}" style="--delay:${index * .09}s" aria-label="查看${project.name}">
         <b>${project.glyph}</b><span>${project.name}</span>
       </button>`).join("");
     $$("[data-project-coordinate]").forEach((marker) => {
       marker.addEventListener("click", () => this.showProjectCoordinate(marker.dataset.projectCoordinate));
     });
     $("#projectFloatCard").classList.remove("is-visible");
+    projectRipple.refreshCoordinates?.();
   },
 
   showProjectCoordinate(id) {
     const project = state.data.projects.find((item) => item.id === id);
+    const background = project.caseStudy?.background ?? project.description;
+    const solution = project.caseStudy?.solution ?? project.summary;
+    const impact = project.caseStudy?.impact ?? "成果数据与真实使用反馈将在项目资料确认后补充。";
     $$("[data-project-coordinate]").forEach((marker) => marker.classList.toggle("is-active", marker.dataset.projectCoordinate === id));
     $("#projectFloatCard").innerHTML = `
       <button class="float-card-close" aria-label="关闭项目介绍">×</button>
       <small>${project.statusLabel.toUpperCase()} / ${project.year}</small>
       <h2>${project.name}</h2>
       <p>${project.description}</p>
+      <div class="project-float-story">
+        <section><span>01 / BACKGROUND</span><p>${background}</p></section>
+        <section><span>02 / SOLUTION</span><p>${solution}</p></section>
+        <section><span>03 / IMPACT</span><p>${impact}</p></section>
+      </div>
       <div class="project-float-meta">
         <span>项目状态<b>${project.statusLabel}</b></span>
         <span>参与部门<b>${project.owner}</b></span>
@@ -211,8 +212,12 @@ const app = {
     $(".float-card-close").addEventListener("click", () => {
       $("#projectFloatCard").classList.remove("is-visible");
       $$("[data-project-coordinate]").forEach((marker) => marker.classList.remove("is-active"));
+      projectRipple.resume();
     });
-    projectRipple.pulse();
+    state.exploredProjects.add(id);
+    $("#projectProgress").classList.add("is-visible");
+    $("#projectProgress strong").textContent = `${state.exploredProjects.size} / ${state.data.projects.length}`;
+    projectRipple.pauseForProject(id);
   },
 
   openProject(id) {
@@ -326,9 +331,9 @@ const app = {
       state.projectFilter = button.dataset.filter;
       $$("#projectTabs button").forEach((item) => item.classList.toggle("is-active", item === button));
       this.renderProjects();
-      projectRipple.pulse();
     }));
     $("#projectCore").addEventListener("click", () => projectRipple.explode());
+    $("#projectReset").addEventListener("click", () => projectRipple.reset());
     $$("#alumniSwitch button").forEach((button) => button.addEventListener("click", () => {
       state.alumniView = button.dataset.alumniView;
       $$("#alumniSwitch button").forEach((item) => item.classList.toggle("is-active", item === button));
@@ -580,33 +585,94 @@ const projectRipple = {
   ctx: null,
   width: 0,
   height: 0,
-  spherePoints: [],
-  transitionStarted: 0,
-  manualPulse: 0,
-  explored: false,
+  particles: [],
+  ambient: [],
+  coordinates: [],
+  phase: "sphere",
+  phaseStarted: 0,
+  paused: false,
+  selectedProject: "",
+  yaw: 0,
+  pitch: .98,
+  targetYaw: 0,
+  targetPitch: .98,
+  spin: 0,
+  lastTime: 0,
+  drag: null,
+  pointerInside: false,
+  phaseTimer: null,
 
   init() {
     this.canvas = $("#projectRippleCanvas");
     this.ctx = this.canvas.getContext("2d");
-    this.makeSphere();
+    this.makeParticles();
+    this.refreshCoordinates();
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    const explorer = $("#projectExplorer");
+    explorer.addEventListener("pointermove", (event) => this.handlePointerMove(event));
+    explorer.addEventListener("pointerleave", (event) => {
+      if (event.pointerType === "mouse") {
+        this.pointerInside = false;
+        this.targetYaw = 0;
+        this.targetPitch = .98;
+      }
+    });
+    explorer.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse") return;
+      this.drag = { id: event.pointerId, x: event.clientX, y: event.clientY, yaw: this.targetYaw, pitch: this.targetPitch };
+      explorer.setPointerCapture?.(event.pointerId);
+    });
+    explorer.addEventListener("pointerup", (event) => {
+      if (this.drag?.id === event.pointerId) this.drag = null;
+    });
+    explorer.addEventListener("pointercancel", () => { this.drag = null; });
     requestAnimationFrame((time) => this.animate(time));
   },
 
-  makeSphere() {
-    const count = innerWidth < 620 ? 520 : 1150;
-    this.spherePoints = Array.from({ length: count }, (_, index) => {
-      const y = 1 - index / (count - 1) * 2;
-      const radius = Math.sqrt(Math.max(0, 1 - y * y));
-      const theta = Math.PI * (3 - Math.sqrt(5)) * index;
+  makeParticles() {
+    const count = innerWidth < 620 ? 1500 : 3200;
+    const arms = 5;
+    this.particles = Array.from({ length: count }, (_, index) => {
+      const sphereY = 1 - index / (count - 1) * 2;
+      const sphereRadius = Math.sqrt(Math.max(0, 1 - sphereY * sphereY));
+      const sphereTheta = Math.PI * (3 - Math.sqrt(5)) * index;
+      const radius = Math.pow(Math.random(), .62);
+      const arm = index % arms;
+      const angle = arm / arms * Math.PI * 2 + radius * 7.3 + (Math.random() - .5) * (.22 + radius * .78);
+      const coreBias = Math.random() < .16;
+      const galaxyRadius = coreBias ? Math.random() * .17 : radius;
+      const thickness = (Math.random() - .5) * (.025 + (1 - galaxyRadius) * .1);
+      const burstTheta = Math.random() * Math.PI * 2;
+      const burstPhi = Math.acos(2 * Math.random() - 1);
       return {
-        x: Math.cos(theta) * radius,
-        y,
-        z: Math.sin(theta) * radius,
-        seed: index * .618 + Math.random() * 2
+        sphere: {
+          x: Math.cos(sphereTheta) * sphereRadius,
+          y: sphereY,
+          z: Math.sin(sphereTheta) * sphereRadius
+        },
+        galaxy: {
+          x: Math.cos(angle) * galaxyRadius,
+          y: Math.sin(angle) * galaxyRadius,
+          z: thickness
+        },
+        burst: {
+          x: Math.sin(burstPhi) * Math.cos(burstTheta) * (1.15 + Math.random() * .72),
+          y: Math.sin(burstPhi) * Math.sin(burstTheta) * (1.15 + Math.random() * .72),
+          z: Math.cos(burstPhi) * (1.15 + Math.random() * .72)
+        },
+        palette: index % 11 === 0 ? 2 : index % 7 === 0 ? 3 : index % 3,
+        size: .45 + Math.random() * 1.35,
+        seed: index * .618 + Math.random() * 4
       };
     });
+    this.ambient = Array.from({ length: innerWidth < 620 ? 170 : 430 }, (_, index) => ({
+      x: Math.random() * 2 - 1,
+      y: Math.random() * 2 - 1,
+      z: Math.random() * 2 - 1,
+      size: .35 + Math.random() * 1.7,
+      seed: index * .91 + Math.random() * 3
+    }));
   },
 
   resize() {
@@ -620,26 +686,100 @@ const projectRipple = {
     this.height = rect.height;
   },
 
-  explode() {
-    if (this.explored) {
-      this.pulse();
-      return;
-    }
-    this.transitionStarted = performance.now();
-    $("#projectExplorer").classList.add("is-launching");
-    setTimeout(() => {
-      this.explored = true;
-      $("#projectExplorer").classList.remove("is-launching");
-      $("#projectExplorer").classList.add("is-explored");
-      this.pulse();
-    }, 760);
+  refreshCoordinates() {
+    const markers = $$("[data-project-coordinate]");
+    const count = Math.max(1, markers.length);
+    this.coordinates = markers.map((marker, index) => {
+      const angle = -Math.PI / 2 + index / count * Math.PI * 2 + (index % 2 ? .17 : 0);
+      const radius = .32 + (index % 3) * .11;
+      return {
+        id: marker.dataset.projectCoordinate,
+        marker,
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+        z: (index % 2 ? 1 : -1) * .035
+      };
+    });
   },
 
-  pulse() {
-    this.manualPulse = performance.now();
+  handlePointerMove(event) {
+    if (this.paused) return;
+    const explorer = $("#projectExplorer");
+    const rect = explorer.getBoundingClientRect();
+    if (this.drag?.id === event.pointerId) {
+      const dx = (event.clientX - this.drag.x) / Math.max(rect.width, 1);
+      const dy = (event.clientY - this.drag.y) / Math.max(rect.height, 1);
+      this.targetYaw = Math.max(-.62, Math.min(.62, this.drag.yaw + dx * 1.9));
+      this.targetPitch = Math.max(.72, Math.min(1.2, this.drag.pitch + dy * 1.25));
+      return;
+    }
+    if (event.pointerType !== "mouse") return;
+    this.pointerInside = true;
+    const nx = (event.clientX - rect.left) / rect.width - .5;
+    const ny = (event.clientY - rect.top) / rect.height - .5;
+    this.targetYaw = Math.max(-.56, Math.min(.56, nx * 1.05));
+    this.targetPitch = Math.max(.76, Math.min(1.18, .98 + ny * .52));
+  },
+
+  explode() {
+    if (this.phase !== "sphere") return;
+    clearTimeout(this.phaseTimer);
+    this.phase = "transition";
+    this.phaseStarted = performance.now();
+    const explorer = $("#projectExplorer");
+    explorer.classList.add("is-launching");
+    explorer.classList.remove("is-resetting");
+    this.phaseTimer = setTimeout(() => {
+      this.phase = "galaxy";
+      explorer.classList.remove("is-launching");
+      explorer.classList.add("is-explored", "is-galaxy");
+      this.refreshCoordinates();
+    }, 2800);
+  },
+
+  pauseForProject(id) {
+    this.paused = true;
+    this.selectedProject = id;
+    $("#projectExplorer").classList.add("has-selection");
+  },
+
+  resume() {
+    this.paused = false;
+    this.selectedProject = "";
+    $("#projectExplorer").classList.remove("has-selection");
+  },
+
+  reset() {
+    if (this.phase === "sphere" || this.phase === "resetting") return;
+    clearTimeout(this.phaseTimer);
+    this.resume();
+    $("#projectFloatCard").classList.remove("is-visible");
+    $$("[data-project-coordinate]").forEach((marker) => marker.classList.remove("is-active"));
+    const explorer = $("#projectExplorer");
+    explorer.classList.remove("is-explored", "is-galaxy", "is-launching");
+    explorer.classList.add("is-resetting");
+    this.phase = "resetting";
+    this.phaseStarted = performance.now();
+    this.phaseTimer = setTimeout(() => {
+      this.phase = "sphere";
+      this.phaseStarted = 0;
+      this.spin = 0;
+      this.yaw = this.targetYaw = 0;
+      this.pitch = this.targetPitch = .98;
+      explorer.classList.remove("is-resetting");
+    }, 1550);
   },
 
   animate(time) {
+    const delta = Math.min(32, time - (this.lastTime || time));
+    this.lastTime = time;
+    if (!this.paused) {
+      this.yaw += (this.targetYaw - this.yaw) * .045;
+      this.pitch += (this.targetPitch - this.pitch) * .045;
+      if (Math.abs(this.targetYaw - this.yaw) < .0005) this.yaw = this.targetYaw;
+      if (Math.abs(this.targetPitch - this.pitch) < .0005) this.pitch = this.targetPitch;
+      if (this.phase === "galaxy" && !this.pointerInside && !this.drag) this.spin += delta * .000055;
+    }
     this.draw(time);
     requestAnimationFrame((next) => this.animate(next));
   },
@@ -649,77 +789,163 @@ const projectRipple = {
     const ctx = this.ctx;
     const w = this.width;
     const h = this.height;
-    const cx = w * (w < 600 ? .5 : w < 920 ? .52 : .64);
-    const cy = h * (w < 600 ? .65 : w < 920 ? .59 : .56);
+    const cx = w * .5;
+    const cy = h * (w < 600 ? .58 : .52);
     const dark = document.body.classList.contains("dark");
-    const color = dark ? "242,248,255" : "72,105,176";
+    const palette = dark
+      ? ["245,250,255", "130,219,255", "101,157,255", "201,228,255"]
+      : ["57,91,171", "90,112,215", "30,172,205", "123,92,205"];
     ctx.clearRect(0, 0, w, h);
     ctx.globalCompositeOperation = dark ? "lighter" : "source-over";
+    const galaxyVisible = this.phase !== "sphere";
+    if (galaxyVisible) this.drawAmbient(ctx, w, h, cx, cy, dark, time);
+    const elapsed = this.phaseStarted ? time - this.phaseStarted : 0;
+    const transition = this.phase === "transition" ? Math.min(1, elapsed / 2800) : this.phase === "galaxy" ? 1 : 0;
+    const resetProgress = this.phase === "resetting" ? Math.min(1, elapsed / 1550) : 0;
+    const scale = Math.min(w * (w < 600 ? .58 : .48), h * (w < 600 ? .48 : .6));
+    const sphereScale = Math.min(h * .15, w * .23);
+    const formation = transition <= .43 ? 0 : this.ease((transition - .43) / .57);
+    const burstProgress = transition <= .32 ? this.easeOut(transition / .32) : 1;
+    const collapse = this.ease(resetProgress);
 
-    const transitionProgress = this.transitionStarted ? Math.min(1, (time - this.transitionStarted) / 1250) : 0;
-    if (!this.explored) {
-      const sphereRadius = Math.min(w, h) * (w < 600 ? .085 : .105);
-      const rotation = time * .00028;
-      const burst = transitionProgress ? Math.sin(Math.min(1, transitionProgress) * Math.PI * .56) : 0;
-      for (const point of this.spherePoints) {
-        const x = point.x * Math.cos(rotation) - point.z * Math.sin(rotation);
-        const z = point.x * Math.sin(rotation) + point.z * Math.cos(rotation);
-        const perspective = 1 / (1.7 - z * .34);
-        const burstAngle = point.seed * 2.399;
-        const burstDistance = burst * Math.min(w, h) * (.22 + point.seed % 1 * .18);
-        const px = cx + x * sphereRadius * perspective + Math.cos(burstAngle) * burstDistance;
-        const py = cy + point.y * sphereRadius * perspective + Math.sin(burstAngle) * burstDistance * .62;
-        const depth = (z + 1) / 2;
-        ctx.globalAlpha = Math.max(0, (1 - transitionProgress) * (.18 + depth * .72));
-        ctx.fillStyle = `rgb(${color})`;
-        ctx.beginPath();
-        ctx.arc(px, py, .55 + depth * 1.25, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      this.drawRipple(ctx, cx, cy, transitionProgress * Math.min(w, h) * .42, (1 - transitionProgress) * .7, color, time, 0);
-    }
-
-    if (this.explored) {
-      const maxRadius = Math.min(w * (w < 920 ? .42 : .34), h * .47);
-      for (let index = 0; index < 5; index++) {
-        const phase = (time * .00034 + index / 5) % 1;
-        this.drawRipple(ctx, cx, cy, 34 + phase * maxRadius, Math.pow(1 - phase, 1.65) * .56, color, time, index);
-      }
-      ctx.globalAlpha = .65;
-      ctx.fillStyle = `rgb(${color})`;
+    if (this.phase === "galaxy" || formation > .12 || this.phase === "resetting") {
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, scale * .35);
+      glow.addColorStop(0, dark ? "rgba(190,230,255,.22)" : "rgba(84,118,210,.16)");
+      glow.addColorStop(.25, dark ? "rgba(55,155,220,.1)" : "rgba(86,106,206,.07)");
+      glow.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalAlpha = this.phase === "resetting" ? 1 - collapse : formation;
+      ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(cx, cy, 2.4, 0, Math.PI * 2);
+      ctx.arc(cx, cy, scale * .36, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    if (this.manualPulse) {
-      const age = (time - this.manualPulse) / 1100;
-      if (age < 1) this.drawRipple(ctx, cx, cy, 22 + age * Math.min(w, h) * .43, Math.pow(1 - age, 1.25) * .92, color, time, 9);
-      else this.manualPulse = 0;
+    const sphereRotation = time * .0003;
+    for (const particle of this.particles) {
+      let point;
+      let objectScale;
+      let rotationPitch = 0;
+      let rotationYaw = sphereRotation;
+      if (this.phase === "sphere") {
+        point = particle.sphere;
+        objectScale = sphereScale;
+      } else if (this.phase === "transition") {
+        const exploded = {
+          x: this.mix(particle.sphere.x, particle.burst.x, burstProgress),
+          y: this.mix(particle.sphere.y, particle.burst.y, burstProgress),
+          z: this.mix(particle.sphere.z, particle.burst.z, burstProgress)
+        };
+        point = {
+          x: this.mix(exploded.x, particle.galaxy.x, formation),
+          y: this.mix(exploded.y, particle.galaxy.y, formation),
+          z: this.mix(exploded.z, particle.galaxy.z, formation)
+        };
+        objectScale = this.mix(sphereScale, scale, formation);
+        rotationPitch = this.pitch * formation;
+        rotationYaw = this.mix(sphereRotation, this.yaw, formation);
+      } else if (this.phase === "resetting") {
+        point = {
+          x: this.mix(particle.galaxy.x, particle.sphere.x, collapse),
+          y: this.mix(particle.galaxy.y, particle.sphere.y, collapse),
+          z: this.mix(particle.galaxy.z, particle.sphere.z, collapse)
+        };
+        objectScale = this.mix(scale, sphereScale, collapse);
+        rotationPitch = this.pitch * (1 - collapse);
+        rotationYaw = this.mix(this.yaw, sphereRotation, collapse);
+      } else {
+        point = particle.galaxy;
+        objectScale = scale;
+        rotationPitch = this.pitch;
+        rotationYaw = this.yaw;
+      }
+      const projected = this.project(point, objectScale, cx, cy, rotationYaw, rotationPitch, this.phase === "galaxy" ? this.spin : 0);
+      const depth = Math.max(0, Math.min(1, (projected.depth + objectScale) / (objectScale * 2)));
+      const twinkle = .78 + Math.sin(time * .002 + particle.seed) * .22;
+      ctx.globalAlpha = (.17 + depth * .68) * twinkle;
+      ctx.fillStyle = `rgb(${palette[particle.palette]})`;
+      ctx.beginPath();
+      ctx.arc(projected.x, projected.y, particle.size * projected.perspective * (depth > .7 ? 1.25 : 1), 0, Math.PI * 2);
+      ctx.fill();
     }
+
+    if (this.phase === "galaxy") this.updateCoordinateMarkers(scale, cx, cy);
+    else if (this.phase !== "transition" || formation < .82) this.hideCoordinateMarkers();
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = "source-over";
   },
 
-  drawRipple(ctx, cx, cy, radius, alpha, color, time, seed) {
-    if (radius < 2 || alpha <= 0) return;
-    ctx.strokeStyle = `rgba(${color},${alpha * .42})`;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    const count = Math.max(38, Math.round(radius * .72));
-    ctx.fillStyle = `rgb(${color})`;
-    for (let index = 0; index < count; index++) {
-      const angle = index / count * Math.PI * 2;
-      const jitter = Math.sin(index * 12.37 + seed * 4.1 + time * .001) * 2.3;
-      const px = cx + Math.cos(angle) * (radius + jitter);
-      const py = cy + Math.sin(angle) * (radius + jitter) * .68;
-      ctx.globalAlpha = alpha * (.35 + (index % 7) / 10);
+  drawAmbient(ctx, w, h, cx, cy, dark, time) {
+    for (const star of this.ambient) {
+      const parallaxX = this.yaw * star.z * w * .08;
+      const parallaxY = (this.pitch - .98) * star.z * h * .12;
+      const x = cx + star.x * w * .58 + parallaxX;
+      const y = cy + star.y * h * .58 + parallaxY;
+      const alpha = (dark ? .22 : .08) + (.5 + Math.sin(time * .0012 + star.seed) * .5) * (dark ? .5 : .18);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = dark ? "#f4fbff" : "#4769b3";
       ctx.beginPath();
-      ctx.arc(px, py, .45 + (index % 5) * .14, 0, Math.PI * 2);
+      ctx.arc(x, y, star.size, 0, Math.PI * 2);
       ctx.fill();
+      if (star.size > 1.65) {
+        ctx.globalAlpha = alpha * .5;
+        ctx.strokeStyle = dark ? "#dff8ff" : "#6582c2";
+        ctx.lineWidth = .6;
+        ctx.beginPath();
+        ctx.moveTo(x - star.size * 3, y);
+        ctx.lineTo(x + star.size * 3, y);
+        ctx.moveTo(x, y - star.size * 3);
+        ctx.lineTo(x, y + star.size * 3);
+        ctx.stroke();
+      }
     }
+  },
+
+  project(point, scale, cx, cy, yaw, pitch, spin) {
+    const spinCos = Math.cos(spin);
+    const spinSin = Math.sin(spin);
+    const x0 = point.x * spinCos - point.y * spinSin;
+    const y0 = point.x * spinSin + point.y * spinCos;
+    const z0 = point.z;
+    const pitchCos = Math.cos(pitch);
+    const pitchSin = Math.sin(pitch);
+    const y1 = y0 * pitchCos - z0 * pitchSin;
+    const z1 = y0 * pitchSin + z0 * pitchCos;
+    const yawCos = Math.cos(yaw);
+    const yawSin = Math.sin(yaw);
+    const x2 = x0 * yawCos + z1 * yawSin;
+    const z2 = -x0 * yawSin + z1 * yawCos;
+    const depth = z2 * scale;
+    const perspective = 760 / (760 + depth);
+    return { x: cx + x2 * scale * perspective, y: cy + y1 * scale * perspective, depth, perspective };
+  },
+
+  updateCoordinateMarkers(scale, cx, cy) {
+    for (const coordinate of this.coordinates) {
+      const projected = this.project(coordinate, scale, cx, cy, this.yaw, this.pitch, this.spin);
+      const depthScale = Math.max(.72, Math.min(1.22, 1 - projected.depth / (scale * 3)));
+      coordinate.marker.style.left = `${projected.x}px`;
+      coordinate.marker.style.top = `${projected.y}px`;
+      coordinate.marker.style.setProperty("--depth-scale", depthScale.toFixed(3));
+      coordinate.marker.style.zIndex = String(20 + Math.round((1 - projected.depth / scale) * 20));
+      coordinate.marker.classList.toggle("is-behind", projected.depth > scale * .2);
+    }
+  },
+
+  hideCoordinateMarkers() {
+    this.coordinates.forEach((coordinate) => {
+      coordinate.marker.style.removeProperty("left");
+      coordinate.marker.style.removeProperty("top");
+    });
+  },
+
+  mix(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); },
+  ease(t) {
+    const value = Math.max(0, Math.min(1, t));
+    return value < .5 ? 4 * value ** 3 : 1 - (-2 * value + 2) ** 3 / 2;
+  },
+  easeOut(t) {
+    const value = Math.max(0, Math.min(1, t));
+    return 1 - (1 - value) ** 3;
   }
 };
 
