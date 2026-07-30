@@ -8,7 +8,7 @@ const state = {
   department: null,
   projectFilter: "all",
   exploredProjects: new Set(),
-  alumniView: "timeline",
+  selectedCity: "",
   qrType: "recruit"
 };
 
@@ -22,7 +22,6 @@ const app = {
     this.renderDepartments();
     this.renderProjects();
     this.renderAlumni();
-    this.renderAnnuals();
     this.renderJoin();
     this.bindNavigation();
     this.bindTheme();
@@ -243,43 +242,56 @@ const app = {
   },
 
   renderAlumni() {
-    const grouped = state.data.alumni.reduce((result, person) => {
-      (result[person.year] ??= []).push(person);
-      return result;
-    }, {});
-    $("#timelinePanel").innerHTML = Object.keys(grouped).sort((a, b) => b - a).map((year) => `
-      <section class="timeline-year">
-        <h2>${year}</h2>
-        <div class="timeline-items">${grouped[year].map((person) => `
-          <article class="alumni-card"><small>${person.city} / ${person.role}</small><h3>${person.name}</h3><p>${person.company}</p><p class="alumni-quote">“${person.quote}”</p></article>`).join("")}
-        </div>
-      </section>`).join("");
     $("#cityMarkers").innerHTML = state.data.cities.map((city) => {
-      const size = Math.max(8, state.data.alumni.filter((person) => person.city === city.name).length * 4 + 6);
-      return `<g class="city-marker" data-city="${city.name}" tabindex="0"><circle cx="${city.x}" cy="${city.y}" r="${size}"></circle><text x="${city.x + 15}" y="${city.y + 4}">${city.name}</text></g>`;
+      const count = state.data.alumni.filter((person) => person.city === city.name).length;
+      return `<g class="city-marker" data-city="${city.name}" tabindex="0" role="button" aria-label="查看${city.name}的${count}位蓝山校友">
+        <circle class="city-marker-hit" cx="${city.x}" cy="${city.y - 16}" r="28"></circle>
+        <path class="city-pin" transform="translate(${city.x} ${city.y})" d="M0 0C-4-8-13-15-13-25A13 13 0 1 1 13-25C13-15 4-8 0 0Z"></path>
+        <circle class="city-pin-core" cx="${city.x}" cy="${city.y - 25}" r="4"></circle>
+        <text x="${city.x + 17}" y="${city.y - 20}">${city.name}</text>
+      </g>`;
     }).join("");
+    $("#cityPopup").innerHTML = "";
     $$(".city-marker").forEach((marker) => {
       const select = () => this.selectCity(marker.dataset.city);
       marker.addEventListener("click", select);
-      marker.addEventListener("keydown", (event) => event.key === "Enter" && select());
+      marker.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          select();
+        }
+      });
     });
   },
 
   selectCity(cityName) {
-    $$(".city-marker").forEach((marker) => marker.classList.toggle("is-active", marker.dataset.city === cityName));
+    const shouldClose = state.selectedCity === cityName;
+    state.selectedCity = shouldClose ? "" : cityName;
+    $$(".city-marker").forEach((marker) => {
+      const active = marker.dataset.city === state.selectedCity;
+      marker.classList.toggle("is-active", active);
+      marker.setAttribute("aria-pressed", String(active));
+    });
+    if (shouldClose) {
+      $("#cityPopup").innerHTML = "";
+      return;
+    }
+    const city = state.data.cities.find((item) => item.name === cityName);
     const people = state.data.alumni.filter((person) => person.city === cityName);
-    $("#mapDetail").innerHTML = `
-      <p>${cityName.toUpperCase()} / ${String(people.length).padStart(2, "0")} ALUMNI</p>
-      <h3>${cityName}</h3>
-      <span>从蓝山出发，在这里继续创造。</span>
-      <div>${people.map((person) => `<div class="map-person"><strong>${person.name}</strong><small>${person.company} · ${person.role}</small></div>`).join("")}</div>`;
-  },
-
-  renderAnnuals() {
-    $("#annualTrack").innerHTML = state.data.annuals.map((annual) => `
-      <article class="annual-card" style="--cover:${annual.cover}">
-        <small>LANSHAN ANNUAL</small><span>↗</span><h3>${annual.year}<br>${annual.title}</h3><p>${annual.subtitle}</p>
-      </article>`).join("");
+    const compact = innerWidth < 600;
+    const popupWidth = compact ? 330 : 238;
+    const popupHeight = compact ? 112 + people.length * 50 : 82 + people.length * 37;
+    const popupX = Math.max(12, Math.min(760 - popupWidth - 12, city.x - popupWidth / 2));
+    const popupY = Math.max(10, city.y - popupHeight - 48);
+    $("#cityPopup").innerHTML = `
+      <line class="city-popup-line" x1="${city.x}" y1="${city.y - 32}" x2="${city.x}" y2="${popupY + popupHeight}"></line>
+      <circle class="city-popup-joint" cx="${city.x}" cy="${popupY + popupHeight}" r="3"></circle>
+      <foreignObject class="city-popup" x="${popupX}" y="${popupY}" width="${popupWidth}" height="${popupHeight}">
+        <div class="city-popup-card" xmlns="http://www.w3.org/1999/xhtml">
+          <div class="city-popup-heading"><span>${cityName}</span><small>${String(people.length).padStart(2, "0")} ALUMNI</small></div>
+          ${people.map((person) => `<div class="city-popup-person"><strong>${person.name}</strong><span>${person.company} · ${person.role}</span></div>`).join("")}
+        </div>
+      </foreignObject>`;
   },
 
   renderJoin() {
@@ -332,13 +344,8 @@ const app = {
       $$("#projectTabs button").forEach((item) => item.classList.toggle("is-active", item === button));
       this.renderProjects();
     }));
-    $("#projectCore").addEventListener("click", () => projectRipple.explode());
+    $("#projectCore").addEventListener("click", () => projectRipple.ignite());
     $("#projectReset").addEventListener("click", () => projectRipple.reset());
-    $$("#alumniSwitch button").forEach((button) => button.addEventListener("click", () => {
-      state.alumniView = button.dataset.alumniView;
-      $$("#alumniSwitch button").forEach((item) => item.classList.toggle("is-active", item === button));
-      $$(".alumni-panel").forEach((panel) => panel.classList.toggle("is-active", panel.dataset.alumniPanel === state.alumniView));
-    }));
     $$("#qrTabs button").forEach((button) => button.addEventListener("click", () => {
       state.qrType = button.dataset.qrType;
       $$("#qrTabs button").forEach((item) => item.classList.toggle("is-active", item === button));
@@ -593,18 +600,23 @@ const projectRipple = {
   paused: false,
   selectedProject: "",
   yaw: 0,
-  pitch: .98,
+  pitch: -1.05,
   targetYaw: 0,
-  targetPitch: .98,
+  targetPitch: -1.05,
   spin: 0,
   lastTime: 0,
   drag: null,
   pointerInside: false,
+  pointerX: 0,
+  pointerY: 0,
+  igniting: false,
+  formationDuration: 6000,
   phaseTimer: null,
 
   init() {
     this.canvas = $("#projectRippleCanvas");
     this.ctx = this.canvas.getContext("2d");
+    this.gravityCursor = $("#projectGravityCursor");
     this.makeParticles();
     this.refreshCoordinates();
     this.resize();
@@ -614,8 +626,10 @@ const projectRipple = {
     explorer.addEventListener("pointerleave", (event) => {
       if (event.pointerType === "mouse") {
         this.pointerInside = false;
+        explorer.classList.remove("is-gravity-active");
+        this.gravityCursor.classList.remove("is-visible", "is-engaged");
         this.targetYaw = 0;
-        this.targetPitch = .98;
+        this.targetPitch = -1.05;
       }
     });
     explorer.addEventListener("pointerdown", (event) => {
@@ -632,17 +646,34 @@ const projectRipple = {
 
   makeParticles() {
     const count = innerWidth < 620 ? 1500 : 3200;
-    const arms = 5;
+    const softNoise = () => (Math.random() + Math.random() + Math.random() + Math.random()) / 4 - .5;
     this.particles = Array.from({ length: count }, (_, index) => {
       const sphereY = 1 - index / (count - 1) * 2;
       const sphereRadius = Math.sqrt(Math.max(0, 1 - sphereY * sphereY));
       const sphereTheta = Math.PI * (3 - Math.sqrt(5)) * index;
-      const radius = Math.pow(Math.random(), .62);
-      const arm = index % arms;
-      const angle = arm / arms * Math.PI * 2 + radius * 7.3 + (Math.random() - .5) * (.22 + radius * .78);
-      const coreBias = Math.random() < .16;
-      const galaxyRadius = coreBias ? Math.random() * .17 : radius;
-      const thickness = (Math.random() - .5) * (.025 + (1 - galaxyRadius) * .1);
+      const fieldAngle = Math.random() * Math.PI * 2;
+      const distribution = Math.random();
+      // A continuous stellar disc: bright, dense core fading into fine outer lanes.
+      // The radius bands stay soft so the field feels natural rather than like
+      // mechanically drawn concentric circles.
+      const smoothRadius = Math.pow(Math.random(), distribution < .34 ? 1.9 : .72);
+      const laneIndex = 1 + Math.floor(Math.random() * 7);
+      const laneRadius = laneIndex / 7.8 + softNoise() * .055;
+      const fieldRadius = distribution < .24
+        ? Math.max(.025, Math.min(1.02, laneRadius))
+        : smoothRadius;
+      const softEdge = 1 + softNoise() * .045;
+      let galaxyX = Math.cos(fieldAngle) * fieldRadius * softEdge;
+      let galaxyY = Math.sin(fieldAngle) * fieldRadius * softEdge;
+      const ellipseTilt = -.55;
+      const ellipseAspect = .98;
+      const ellipseY = galaxyY * ellipseAspect;
+      const tiltedX = galaxyX * Math.cos(ellipseTilt) - ellipseY * Math.sin(ellipseTilt);
+      const tiltedY = galaxyX * Math.sin(ellipseTilt) + ellipseY * Math.cos(ellipseTilt);
+      galaxyX = tiltedX;
+      galaxyY = tiltedY;
+      const galaxyRadius = Math.hypot(galaxyX, galaxyY);
+      const thickness = softNoise() * (.025 + (1 - Math.min(1, galaxyRadius)) * .025);
       const burstTheta = Math.random() * Math.PI * 2;
       const burstPhi = Math.acos(2 * Math.random() - 1);
       return {
@@ -652,14 +683,19 @@ const projectRipple = {
           z: Math.sin(sphereTheta) * sphereRadius
         },
         galaxy: {
-          x: Math.cos(angle) * galaxyRadius,
-          y: Math.sin(angle) * galaxyRadius,
+          x: galaxyX,
+          y: galaxyY,
           z: thickness
         },
         burst: {
           x: Math.sin(burstPhi) * Math.cos(burstTheta) * (1.15 + Math.random() * .72),
           y: Math.sin(burstPhi) * Math.sin(burstTheta) * (1.15 + Math.random() * .72),
           z: Math.cos(burstPhi) * (1.15 + Math.random() * .72)
+        },
+        drift: {
+          x: softNoise() * .58,
+          y: softNoise() * .48,
+          z: softNoise() * .26
         },
         palette: index % 11 === 0 ? 2 : index % 7 === 0 ? 3 : index % 3,
         size: .45 + Math.random() * 1.35,
@@ -692,12 +728,15 @@ const projectRipple = {
     this.coordinates = markers.map((marker, index) => {
       const angle = -Math.PI / 2 + index / count * Math.PI * 2 + (index % 2 ? .17 : 0);
       const radius = .32 + (index % 3) * .11;
+      const rawX = Math.cos(angle) * radius;
+      const rawY = Math.sin(angle) * radius * .98;
+      const ellipseTilt = -.55;
       return {
         id: marker.dataset.projectCoordinate,
         marker,
-        x: Math.cos(angle) * radius,
-        y: Math.sin(angle) * radius,
-        z: (index % 2 ? 1 : -1) * .035
+        x: rawX * Math.cos(ellipseTilt) - rawY * Math.sin(ellipseTilt),
+        y: rawX * Math.sin(ellipseTilt) + rawY * Math.cos(ellipseTilt),
+        z: (index % 2 ? 1 : -1) * .018
       };
     });
   },
@@ -706,19 +745,56 @@ const projectRipple = {
     if (this.paused) return;
     const explorer = $("#projectExplorer");
     const rect = explorer.getBoundingClientRect();
-    if (this.drag?.id === event.pointerId) {
+    if (this.phase === "galaxy" && this.drag?.id === event.pointerId) {
       const dx = (event.clientX - this.drag.x) / Math.max(rect.width, 1);
       const dy = (event.clientY - this.drag.y) / Math.max(rect.height, 1);
-      this.targetYaw = Math.max(-.62, Math.min(.62, this.drag.yaw + dx * 1.9));
-      this.targetPitch = Math.max(.72, Math.min(1.2, this.drag.pitch + dy * 1.25));
+      this.targetYaw = Math.max(-.38, Math.min(.38, this.drag.yaw + dx * 1.25));
+      this.targetPitch = Math.max(-1.22, Math.min(-.86, this.drag.pitch + dy * .5));
       return;
     }
     if (event.pointerType !== "mouse") return;
     this.pointerInside = true;
+    this.pointerX = event.clientX - rect.left;
+    this.pointerY = event.clientY - rect.top;
+    const overControl = Boolean(event.target.closest("a, button:not(#projectCore), aside, .project-explorer-toolbar"));
+    const gravityVisible = this.phase === "sphere" && !overControl;
+    explorer.classList.toggle("is-gravity-active", gravityVisible);
+    this.gravityCursor.classList.toggle("is-visible", gravityVisible);
+    this.gravityCursor.style.left = `${this.pointerX}px`;
+    this.gravityCursor.style.top = `${this.pointerY}px`;
+    const sphereCenterX = rect.width * .5;
+    const sphereCenterY = rect.height * .5;
+    const sphereRadius = Math.min(rect.height * .15, rect.width * .23);
+    this.gravityCursor.classList.toggle(
+      "is-engaged",
+      gravityVisible && Math.hypot(this.pointerX - sphereCenterX, this.pointerY - sphereCenterY) < sphereRadius * 1.2
+    );
+    if (this.phase !== "galaxy") return;
     const nx = (event.clientX - rect.left) / rect.width - .5;
     const ny = (event.clientY - rect.top) / rect.height - .5;
-    this.targetYaw = Math.max(-.56, Math.min(.56, nx * 1.05));
-    this.targetPitch = Math.max(.76, Math.min(1.18, .98 + ny * .52));
+    this.targetYaw = Math.max(-.28, Math.min(.28, nx * .56));
+    this.targetPitch = Math.max(-1.22, Math.min(-.86, -1.05 + ny * .32));
+  },
+
+  ignite() {
+    if (this.phase !== "sphere" || this.igniting) return;
+    this.igniting = true;
+    const explorer = $("#projectExplorer");
+    const rect = explorer.getBoundingClientRect();
+    if (!this.pointerInside) {
+      this.pointerX = rect.width * .5;
+      this.pointerY = rect.height * .5;
+      this.gravityCursor.style.left = `${this.pointerX}px`;
+      this.gravityCursor.style.top = `${this.pointerY}px`;
+    }
+    explorer.classList.add("is-gravity-active", "is-igniting");
+    this.gravityCursor.classList.add("is-visible", "is-engaged", "is-charging");
+    setTimeout(() => {
+      this.igniting = false;
+      explorer.classList.remove("is-igniting");
+      this.gravityCursor.classList.remove("is-charging");
+      this.explode();
+    }, 260);
   },
 
   explode() {
@@ -727,6 +803,10 @@ const projectRipple = {
     this.phase = "transition";
     this.phaseStarted = performance.now();
     const explorer = $("#projectExplorer");
+    this.targetYaw = 0;
+    this.targetPitch = -1.05;
+    explorer.classList.remove("is-gravity-active");
+    this.gravityCursor.classList.remove("is-visible", "is-engaged");
     explorer.classList.add("is-launching");
     explorer.classList.remove("is-resetting");
     this.phaseTimer = setTimeout(() => {
@@ -734,7 +814,7 @@ const projectRipple = {
       explorer.classList.remove("is-launching");
       explorer.classList.add("is-explored", "is-galaxy");
       this.refreshCoordinates();
-    }, 2800);
+    }, this.formationDuration);
   },
 
   pauseForProject(id) {
@@ -765,7 +845,7 @@ const projectRipple = {
       this.phaseStarted = 0;
       this.spin = 0;
       this.yaw = this.targetYaw = 0;
-      this.pitch = this.targetPitch = .98;
+      this.pitch = this.targetPitch = -1.05;
       explorer.classList.remove("is-resetting");
     }, 1550);
   },
@@ -778,7 +858,7 @@ const projectRipple = {
       this.pitch += (this.targetPitch - this.pitch) * .045;
       if (Math.abs(this.targetYaw - this.yaw) < .0005) this.yaw = this.targetYaw;
       if (Math.abs(this.targetPitch - this.pitch) < .0005) this.pitch = this.targetPitch;
-      if (this.phase === "galaxy" && !this.pointerInside && !this.drag) this.spin += delta * .000055;
+      if (this.phase === "galaxy") this.spin += (0 - this.spin) * .04;
     }
     this.draw(time);
     requestAnimationFrame((next) => this.animate(next));
@@ -790,7 +870,7 @@ const projectRipple = {
     const w = this.width;
     const h = this.height;
     const cx = w * .5;
-    const cy = h * (w < 600 ? .58 : .52);
+    const cy = h * .5;
     const dark = document.body.classList.contains("dark");
     const palette = dark
       ? ["245,250,255", "130,219,255", "101,157,255", "201,228,255"]
@@ -800,7 +880,7 @@ const projectRipple = {
     const galaxyVisible = this.phase !== "sphere";
     if (galaxyVisible) this.drawAmbient(ctx, w, h, cx, cy, dark, time);
     const elapsed = this.phaseStarted ? time - this.phaseStarted : 0;
-    const transition = this.phase === "transition" ? Math.min(1, elapsed / 2800) : this.phase === "galaxy" ? 1 : 0;
+    const transition = this.phase === "transition" ? Math.min(1, elapsed / this.formationDuration) : this.phase === "galaxy" ? 1 : 0;
     const resetProgress = this.phase === "resetting" ? Math.min(1, elapsed / 1550) : 0;
     const scale = Math.min(w * (w < 600 ? .58 : .48), h * (w < 600 ? .48 : .6));
     const sphereScale = Math.min(h * .15, w * .23);
@@ -816,16 +896,17 @@ const projectRipple = {
       ctx.globalAlpha = this.phase === "resetting" ? 1 - collapse : formation;
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(cx, cy, scale * .36, 0, Math.PI * 2);
+      ctx.ellipse(cx, cy, scale * .42, scale * .18, -.28, 0, Math.PI * 2);
       ctx.fill();
     }
 
-    const sphereRotation = time * .0003;
+    const sphereRotation = time * .00008;
     for (const particle of this.particles) {
       let point;
       let objectScale;
       let rotationPitch = 0;
       let rotationYaw = sphereRotation;
+      let screenRoll = 0;
       if (this.phase === "sphere") {
         point = particle.sphere;
         objectScale = sphereScale;
@@ -835,14 +916,16 @@ const projectRipple = {
           y: this.mix(particle.sphere.y, particle.burst.y, burstProgress),
           z: this.mix(particle.sphere.z, particle.burst.z, burstProgress)
         };
+        const arc = Math.sin(formation * Math.PI);
         point = {
-          x: this.mix(exploded.x, particle.galaxy.x, formation),
-          y: this.mix(exploded.y, particle.galaxy.y, formation),
-          z: this.mix(exploded.z, particle.galaxy.z, formation)
+          x: this.mix(exploded.x, particle.galaxy.x, formation) + particle.drift.x * arc,
+          y: this.mix(exploded.y, particle.galaxy.y, formation) + particle.drift.y * arc,
+          z: this.mix(exploded.z, particle.galaxy.z, formation) + particle.drift.z * arc
         };
         objectScale = this.mix(sphereScale, scale, formation);
         rotationPitch = this.pitch * formation;
         rotationYaw = this.mix(sphereRotation, this.yaw, formation);
+        screenRoll = -.18 * formation;
       } else if (this.phase === "resetting") {
         point = {
           x: this.mix(particle.galaxy.x, particle.sphere.x, collapse),
@@ -852,19 +935,36 @@ const projectRipple = {
         objectScale = this.mix(scale, sphereScale, collapse);
         rotationPitch = this.pitch * (1 - collapse);
         rotationYaw = this.mix(this.yaw, sphereRotation, collapse);
+        screenRoll = -.18 * (1 - collapse);
       } else {
         point = particle.galaxy;
         objectScale = scale;
         rotationPitch = this.pitch;
         rotationYaw = this.yaw;
+        screenRoll = -.18;
       }
-      const projected = this.project(point, objectScale, cx, cy, rotationYaw, rotationPitch, this.phase === "galaxy" ? this.spin : 0);
+      const projected = this.project(point, objectScale, cx, cy, rotationYaw, rotationPitch, this.phase === "galaxy" ? this.spin : 0, screenRoll);
+      let drawX = projected.x;
+      let drawY = projected.y;
+      let attraction = 0;
+      if (this.phase === "sphere" && this.pointerInside) {
+        const dx = this.pointerX - projected.x;
+        const dy = this.pointerY - projected.y;
+        const distance = Math.hypot(dx, dy);
+        const attractionRadius = Math.min(155, w * .18);
+        if (distance < attractionRadius) {
+          attraction = (1 - distance / attractionRadius) ** 2;
+          const pull = this.igniting ? .42 : .2;
+          drawX += dx * attraction * pull;
+          drawY += dy * attraction * pull;
+        }
+      }
       const depth = Math.max(0, Math.min(1, (projected.depth + objectScale) / (objectScale * 2)));
       const twinkle = .78 + Math.sin(time * .002 + particle.seed) * .22;
-      ctx.globalAlpha = (.17 + depth * .68) * twinkle;
+      ctx.globalAlpha = Math.min(1, (.17 + depth * .68) * twinkle + attraction * (this.igniting ? .38 : .22));
       ctx.fillStyle = `rgb(${palette[particle.palette]})`;
       ctx.beginPath();
-      ctx.arc(projected.x, projected.y, particle.size * projected.perspective * (depth > .7 ? 1.25 : 1), 0, Math.PI * 2);
+      ctx.arc(drawX, drawY, particle.size * projected.perspective * (depth > .7 ? 1.25 : 1) * (1 + attraction * .36), 0, Math.PI * 2);
       ctx.fill();
     }
 
@@ -877,7 +977,7 @@ const projectRipple = {
   drawAmbient(ctx, w, h, cx, cy, dark, time) {
     for (const star of this.ambient) {
       const parallaxX = this.yaw * star.z * w * .08;
-      const parallaxY = (this.pitch - .98) * star.z * h * .12;
+      const parallaxY = (this.pitch + 1.05) * star.z * h * .12;
       const x = cx + star.x * w * .58 + parallaxX;
       const y = cy + star.y * h * .58 + parallaxY;
       const alpha = (dark ? .22 : .08) + (.5 + Math.sin(time * .0012 + star.seed) * .5) * (dark ? .5 : .18);
@@ -900,7 +1000,7 @@ const projectRipple = {
     }
   },
 
-  project(point, scale, cx, cy, yaw, pitch, spin) {
+  project(point, scale, cx, cy, yaw, pitch, spin, screenRoll = 0) {
     const spinCos = Math.cos(spin);
     const spinSin = Math.sin(spin);
     const x0 = point.x * spinCos - point.y * spinSin;
@@ -915,13 +1015,15 @@ const projectRipple = {
     const x2 = x0 * yawCos + z1 * yawSin;
     const z2 = -x0 * yawSin + z1 * yawCos;
     const depth = z2 * scale;
-    const perspective = 760 / (760 + depth);
-    return { x: cx + x2 * scale * perspective, y: cy + y1 * scale * perspective, depth, perspective };
+    const perspective = 1050 / (1050 + depth);
+    const projectedX = x2 * Math.cos(screenRoll) - y1 * Math.sin(screenRoll);
+    const projectedY = x2 * Math.sin(screenRoll) + y1 * Math.cos(screenRoll);
+    return { x: cx + projectedX * scale * perspective, y: cy + projectedY * scale * perspective, depth, perspective };
   },
 
   updateCoordinateMarkers(scale, cx, cy) {
     for (const coordinate of this.coordinates) {
-      const projected = this.project(coordinate, scale, cx, cy, this.yaw, this.pitch, this.spin);
+      const projected = this.project(coordinate, scale, cx, cy, this.yaw, this.pitch, this.spin, -.18);
       const depthScale = Math.max(.72, Math.min(1.22, 1 - projected.depth / (scale * 3)));
       coordinate.marker.style.left = `${projected.x}px`;
       coordinate.marker.style.top = `${projected.y}px`;

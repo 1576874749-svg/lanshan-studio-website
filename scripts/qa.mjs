@@ -28,7 +28,7 @@ const server = createServer(async (request, response) => {
   }
 });
 
-await new Promise((resolve) => server.listen(4173, "127.0.0.1", resolve));
+await new Promise((resolve) => server.listen(4174, "127.0.0.1", resolve));
 await mkdir("qa", { recursive: true });
 
 const browser = await chromium.launch({
@@ -44,18 +44,27 @@ for (const viewport of [
   const errors = [];
   page.on("console", (message) => message.type() === "error" && errors.push(message.text()));
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("http://127.0.0.1:4173", { waitUntil: "networkidle" });
+  await page.goto("http://127.0.0.1:4174", { waitUntil: "networkidle" });
   await page.waitForTimeout(2500);
-  await page.evaluate(async () => {
-    for (let y = 0; y < document.documentElement.scrollHeight; y += Math.max(420, innerHeight * 0.7)) {
-      window.scrollTo(0, y);
-      await new Promise((resolve) => setTimeout(resolve, 80));
-    }
-    window.scrollTo(0, 0);
-  });
-  await page.waitForTimeout(300);
+  for (const reveal of await page.locator("#homeView .reveal").all()) {
+    await reveal.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(180);
+  }
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(950);
   await page.screenshot({ path: `qa/${viewport.name}-home.png`, fullPage: true });
   const assetStatus = await page.evaluate(() => fetch("./assets/about-galaxy.jpg").then((response) => response.status));
+  const fontStatus = await page.evaluate(async () => {
+    await Promise.all([
+      document.fonts.load('16px "Lanshan Sans"'),
+      document.fonts.load('16px "Lanshan Serif"')
+    ]);
+    return {
+      sans: document.fonts.check('16px "Lanshan Sans"'),
+      serif: document.fonts.check('16px "Lanshan Serif"')
+    };
+  });
+  const annualSectionCount = await page.locator(".annuals, #annualTrack").count();
   let magnifierVisible = false;
   if (viewport.name === "desktop") {
     await page.locator("#themeToggle").click();
@@ -105,8 +114,20 @@ for (const viewport of [
   await page.evaluate(() => { location.hash = "#projects"; });
   await page.waitForTimeout(500);
   await page.screenshot({ path: `qa/${viewport.name}-project-sphere.png`, fullPage: true });
+  if (viewport.name === "desktop") {
+    const projectCoreBox = await page.locator("#projectCore").boundingBox();
+    await page.mouse.move(projectCoreBox.x + projectCoreBox.width * .68, projectCoreBox.y + projectCoreBox.height * .42);
+    await page.waitForTimeout(320);
+    await page.locator("#projectExplorer").screenshot({ path: "qa/desktop-project-sphere-hover.png" });
+  }
   await page.locator("#projectCore").click({ force: true });
-  await page.waitForTimeout(3200);
+  if (viewport.name === "desktop") {
+    await page.waitForTimeout(120);
+    await page.locator("#projectExplorer").screenshot({ path: "qa/desktop-project-ignition.png" });
+    await page.waitForTimeout(6280);
+  } else {
+    await page.waitForTimeout(6400);
+  }
   const coordinateCount = await page.locator("[data-project-coordinate]").count();
   await page.screenshot({ path: `qa/${viewport.name}-project-ripple.png`, fullPage: true });
   await page.locator("[data-project-coordinate]").first().click();
@@ -125,8 +146,10 @@ for (const viewport of [
   await page.evaluate(() => {
     location.hash = "#alumni";
   });
-  await page.waitForTimeout(300);
-  await page.locator('[data-alumni-view="map"]').click();
+  await page.waitForTimeout(750);
+  const alumniTitleFont = await page.locator("#alumniView .inner-hero h1").evaluate((title) => getComputedStyle(title).fontFamily);
+  await page.screenshot({ path: `qa/${viewport.name}-alumni.png`, fullPage: true });
+  await page.locator(".city-marker").first().click();
   await page.waitForTimeout(250);
   if (viewport.name === "desktop") {
     await page.locator(".map-layout").screenshot({ path: "qa/desktop-alumni-map.png" });
@@ -137,7 +160,7 @@ for (const viewport of [
   await page.waitForTimeout(500);
   const joinVisible = await page.locator("#joinView").evaluate((view) => view.classList.contains("is-active"));
   await page.screenshot({ path: `qa/${viewport.name}-join.png`, fullPage: true });
-  results.push({ viewport: viewport.name, errors, assetStatus, aboutVisible, magnifierVisible, coordinateCount, projectFloatVisible, joinVisible, visibleReveals, departmentNames, projectNames });
+  results.push({ viewport: viewport.name, errors, assetStatus, fontStatus, annualSectionCount, alumniTitleFont, aboutVisible, magnifierVisible, coordinateCount, projectFloatVisible, joinVisible, visibleReveals, departmentNames, projectNames });
   await page.close();
 }
 await browser.close();

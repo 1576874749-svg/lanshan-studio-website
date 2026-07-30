@@ -29,11 +29,5 @@
   ],
   "cities": [
     {"name":"北京","x":507,"y":172},{"name":"上海","x":576,"y":280},{"name":"杭州","x":548,"y":302},{"name":"深圳","x":501,"y":369},{"name":"重庆","x":390,"y":319}
-  ],
-  "annuals": [
-    {"year":"2026","title":"生长","subtitle":"BUILD THE NEXT PEAK","cover":"linear-gradient(160deg,#eaf1ff 0 58%,#5262a0 58% 62%,#a8d5c7 62%)"},
-    {"year":"2025","title":"连接","subtitle":"LINK PEOPLE & IDEAS","cover":"radial-gradient(circle at 60% 32%,#9ecfc0 0 7%,transparent 7.5%),linear-gradient(135deg,#182d5b,#5262a0)"},
-    {"year":"2024","title":"回响","subtitle":"THE WORK REMAINS","cover":"repeating-linear-gradient(105deg,#edf4ff 0 20px,#dbe7fb 20px 21px),linear-gradient(#fff,#fff)"},
-    {"year":"2023","title":"上山","subtitle":"START FROM HERE","cover":"linear-gradient(145deg,transparent 0 42%,#91c5b6 42% 45%,transparent 45%),linear-gradient(35deg,#1b315f,#6e87c8)"}
   ]
 }

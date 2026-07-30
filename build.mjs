@@ -30,6 +30,18 @@ const embeddedFiles = {
   "/assets/about-galaxy.jpg": {
     type: "image/jpeg",
     bodyBase64: (await readFile("assets/about-galaxy.jpg")).toString("base64")
+  },
+  "/assets/fonts/LanshanSansSC.woff2": {
+    type: "font/woff2",
+    bodyBase64: (await readFile("assets/fonts/LanshanSansSC.woff2")).toString("base64")
+  },
+  "/assets/fonts/LanshanSerifSC.woff2": {
+    type: "font/woff2",
+    bodyBase64: (await readFile("assets/fonts/LanshanSerifSC.woff2")).toString("base64")
+  },
+  "/assets/fonts/OFL.txt": {
+    type: "text/plain; charset=utf-8",
+    body: await readFile("assets/fonts/OFL.txt", "utf8")
   }
 };
 

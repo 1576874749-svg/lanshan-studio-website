@@ -168,17 +168,6 @@
           </div>
         </section>
 
-        <section class="section annuals">
-          <div class="section-heading reveal">
-            <p class="section-number">04 / ARCHIVE</p>
-            <div>
-              <p class="section-kicker">年刊 · 时间的切片</p>
-              <h2>每一年，都留下<br />一条上山的路</h2>
-            </div>
-          </div>
-          <div class="annual-track reveal" id="annualTrack"></div>
-        </section>
-
         <section class="section home-join">
           <div class="home-join-card reveal">
             <div>
@@ -218,7 +207,7 @@
             <ol>
               <li><span>2017</span><div><h3>从校园需求出发</h3><p>围绕重邮师生的真实使用场景，开始建设可持续服务的校园产品。</p></div></li>
               <li><span>NOW</span><div><h3>多专业协作</h3><p>产品、设计、研发、运维与安全形成完整协作链路，共同支撑项目落地。</p></div></li>
-              <li><span>NEXT</span><div><h3>把能力交给下一届</h3><p>通过项目、文档与年刊沉淀经验，让新的成员站在更高的起点继续创造。</p></div></li>
+              <li><span>NEXT</span><div><h3>把能力交给下一届</h3><p>通过项目、文档与复盘沉淀经验，让新的成员站在更高的起点继续创造。</p></div></li>
             </ol>
           </section>
         </div>
@@ -227,6 +216,7 @@
       <section class="view inner-view" data-view="projects" id="projectsView">
         <div class="project-explorer" id="projectExplorer">
           <canvas id="projectRippleCanvas" aria-hidden="true"></canvas>
+          <div class="project-gravity-cursor" id="projectGravityCursor" aria-hidden="true"><i></i></div>
           <div class="project-explorer-copy">
             <p class="section-number">PROJECT COORDINATES / 02</p>
             <h1>作品，是我们与世界<br />发生联系的方式。</h1>
@@ -255,18 +245,16 @@
         <div class="inner-hero alumni-hero">
           <p class="section-number">ALUMNI NETWORK / 03</p>
           <h1>从蓝山出发，<br />去更远的地方。</h1>
-          <p>技术会更新，同行的记忆不会。沿着她们留下的坐标，看见更多可能。</p>
+          <p>技术会更新，同行的记忆不会。沿着蓝山学长们留下的坐标，看见更多可能。</p>
         </div>
         <div class="content-shell">
-          <div class="view-switch" id="alumniSwitch">
-            <button class="is-active" data-alumni-view="timeline">时间轴</button>
-            <button data-alumni-view="map">城市地图</button>
+          <div class="alumni-map-intro">
+            <p>ALUMNI DESTINATIONS / CHINA</p>
+            <span>点击城市坐标，查看蓝山成员从校园到行业的成长路径。</span>
           </div>
-          <div class="alumni-panel is-active" data-alumni-panel="timeline" id="timelinePanel"></div>
-          <div class="alumni-panel" data-alumni-panel="map">
-            <div class="map-layout">
-              <div class="china-map">
-                <svg viewBox="0 0 760 540" aria-label="中国及周边毕业去向示意地图">
+          <div class="map-layout">
+            <div class="china-map">
+              <svg viewBox="0 0 760 540" aria-label="中国及周边毕业去向示意地图">
                   <g class="map-surroundings" aria-hidden="true">
                     <path d="M64 86 L154 49 L238 56 L302 27 L390 44 L475 28 L574 51 L708 92"/>
                     <path d="M43 223 L76 199 L101 210 L123 189"/>
@@ -283,15 +271,10 @@
                   <text class="map-sea-label" x="520" y="472">南海</text>
                   <text class="map-neighbor-label" x="318" y="57">蒙古</text>
                   <text class="map-neighbor-label" x="657" y="183">朝鲜半岛</text>
-                  <g id="cityMarkers"></g>
-                </svg>
-                <div class="map-grid"></div>
-              </div>
-              <aside class="map-detail" id="mapDetail">
-                <p>ALUMNI DESTINATIONS</p>
-                <h3>点击城市坐标</h3>
-                <span>查看蓝山成员从校园到行业的成长路径。</span>
-              </aside>
+                <g id="cityMarkers"></g>
+                <g id="cityPopup" aria-live="polite"></g>
+              </svg>
+              <div class="map-grid"></div>
             </div>
           </div>
         </div>
