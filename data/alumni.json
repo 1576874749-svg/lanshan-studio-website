@@ -1,9 +1,19 @@
 [
-  {"name": "黄一峰", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "万子渝", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "潘麒麟", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "唐华洋", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "赵锡军", "year": 2026, "company": "腾讯wxg", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "李恩熙", "year": 2026, "company": "京东", "role": "计算机学院", "city": "", "quote": ""},
-  {"name": "杨璟轩", "year": 2026, "company": "华南理工（保研）", "role": "计算机学院", "city": "", "quote": ""}
+  {"name": "黄一峰", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "万子渝", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "潘麒麟", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "唐华洋", "year": 2026, "company": "字节跳动", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "赵锡军", "year": 2026, "company": "腾讯·WXG", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/tencent.png"},
+  {"name": "李恩熙", "year": 2026, "company": "京东", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/jd.png"},
+  {"name": "杨璟轩", "year": 2026, "company": "华南理工（保研）", "role": "计算机学院", "city": "", "quote": "", "logo": ""},
+  {"name": "刘懿莹", "year": 2025, "company": "字节跳动·国际化电商", "role": "软件工程", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "熊珂", "year": 2025, "company": "字节跳动·国际化电商", "role": "软件工程", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "谭博文", "year": 2025, "company": "腾讯·WXG", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/tencent.png"},
+  {"name": "李自平", "year": 2025, "company": "腾讯·CDG", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/tencent.png"},
+  {"name": "肖占林", "year": 2025, "company": "腾讯·TEG", "role": "软件工程", "city": "", "quote": "", "logo": "./assets/logos/tencent.png"},
+  {"name": "王鑫", "year": 2025, "company": "字节跳动·中台架构", "role": "软件工程", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "唐文荟", "year": 2025, "company": "字节跳动·基础架构", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "李明杰", "year": 2025, "company": "字节跳动·搜索AI搜", "role": "软件工程", "city": "", "quote": "", "logo": "./assets/logos/bytedance.png"},
+  {"name": "罗彬", "year": 2025, "company": "科大讯飞·成都·消费者", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/iflytek.png"},
+  {"name": "唐海复", "year": 2025, "company": "深信服", "role": "计算机学院", "city": "", "quote": "", "logo": "./assets/logos/sangfor.png"}
 ]
