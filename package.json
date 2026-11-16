@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs"
+    "build": "npm run validate:data && node build.mjs",
+    "validate:data": "node scripts/validate-data.mjs"
   }
 }
