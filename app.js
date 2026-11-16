@@ -21,7 +21,7 @@ const app = {
     const keys = ["metrics", "departments", "projects", "alumni", "cities"];
     const datasets = await Promise.all(keys.map(async (key) => {
       const filename = manifest.files?.[key];
-      if (typeof filename !== "string" || !/^[a-z-]+\\.json$/.test(filename)) {
+      if (typeof filename !== "string" || !/^[a-z-]+\.json$/.test(filename)) {
         throw new Error(`无效的数据文件路径：${key}`);
       }
       const response = await fetch(`./data/${filename}`);
