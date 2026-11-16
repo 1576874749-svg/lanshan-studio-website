@@ -27,6 +27,30 @@ const embeddedFiles = {
     type: "application/json; charset=utf-8",
     body: await readFile("data/site-data.json", "utf8")
   },
+  "/data/manifest.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/manifest.json", "utf8")
+  },
+  "/data/metrics.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/metrics.json", "utf8")
+  },
+  "/data/departments.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/departments.json", "utf8")
+  },
+  "/data/projects.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/projects.json", "utf8")
+  },
+  "/data/alumni.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/alumni.json", "utf8")
+  },
+  "/data/cities.json": {
+    type: "application/json; charset=utf-8",
+    body: await readFile("data/cities.json", "utf8")
+  },
   "/assets/about-galaxy.jpg": {
     type: "image/jpeg",
     bodyBase64: (await readFile("assets/about-galaxy.jpg")).toString("base64")

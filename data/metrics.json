@@ -1,0 +1,24 @@
+{
+  "metrics": [
+    {
+      "value": 9,
+      "suffix": "年",
+      "label": "持续创造与传承"
+    },
+    {
+      "value": 24,
+      "suffix": "+",
+      "label": "累计项目与实验"
+    },
+    {
+      "value": 180,
+      "suffix": "+",
+      "label": "成员在此共同成长"
+    },
+    {
+      "value": 12,
+      "suffix": "城",
+      "label": "校友奔赴行业一线"
+    }
+  ]
+}
