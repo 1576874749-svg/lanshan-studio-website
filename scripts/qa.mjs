@@ -31,10 +31,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(4174, "127.0.0.1", resolve));
 await mkdir("qa", { recursive: true });
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
-});
+const browser = await chromium.launch({ headless: true });
 const results = [];
 for (const viewport of [
   { name: "desktop", width: 1440, height: 1000 },
