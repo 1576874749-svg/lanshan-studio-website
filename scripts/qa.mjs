@@ -163,3 +163,17 @@ for (const viewport of [
 await browser.close();
 server.close();
 console.log(JSON.stringify(results, null, 2));
+const failures = [];
+for (const item of results) {
+  if (item.errors.length) failures.push(`${item.viewport}: browser errors: ${item.errors.join("; ")}`);
+  if (item.assetStatus !== 200) failures.push(`${item.viewport}: missing galaxy asset`);
+  if (!item.fontStatus.sans || !item.fontStatus.serif) failures.push(`${item.viewport}: font load failed`);
+  if (!item.aboutVisible || !item.joinVisible || !item.projectFloatVisible) failures.push(`${item.viewport}: broken navigation / project interaction`);
+  if (item.coordinateCount !== 6) failures.push(`${item.viewport}: expected 6 project coordinates, got ${item.coordinateCount}`);
+  if (item.departmentNames.length !== 4) failures.push(`${item.viewport}: departments missing`);
+  if (item.projectNames.length !== 6) failures.push(`${item.viewport}: projects missing`);
+  if (item.viewport === "desktop" && !item.magnifierVisible) failures.push("desktop: department magnifier failed");
+}
+if (failures.length) throw new Error("Browser regression failures:\\n" + failures.join("\\n"));
+console.log("Browser regression passed on desktop and mobile");
+
