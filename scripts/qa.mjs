@@ -31,10 +31,7 @@ const server = createServer(async (request, response) => {
 await new Promise((resolve) => server.listen(4174, "127.0.0.1", resolve));
 await mkdir("qa", { recursive: true });
 
-const browser = await chromium.launch({
-  headless: true,
-  executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
-});
+const browser = await chromium.launch({ headless: true });
 const results = [];
 for (const viewport of [
   { name: "desktop", width: 1440, height: 1000 },
@@ -166,3 +163,17 @@ for (const viewport of [
 await browser.close();
 server.close();
 console.log(JSON.stringify(results, null, 2));
+const failures = [];
+for (const item of results) {
+  if (item.errors.length) failures.push(`${item.viewport}: browser errors: ${item.errors.join("; ")}`);
+  if (item.assetStatus !== 200) failures.push(`${item.viewport}: missing galaxy asset`);
+  if (!item.fontStatus.sans || !item.fontStatus.serif) failures.push(`${item.viewport}: font load failed`);
+  if (!item.aboutVisible || !item.joinVisible || !item.projectFloatVisible) failures.push(`${item.viewport}: broken navigation / project interaction`);
+  if (item.coordinateCount !== 6) failures.push(`${item.viewport}: expected 6 project coordinates, got ${item.coordinateCount}`);
+  if (item.departmentNames.length !== 4) failures.push(`${item.viewport}: departments missing`);
+  if (item.projectNames.length !== 6) failures.push(`${item.viewport}: projects missing`);
+  if (item.viewport === "desktop" && !item.magnifierVisible) failures.push("desktop: department magnifier failed");
+}
+if (failures.length) throw new Error("Browser regression failures:\\n" + failures.join("\\n"));
+console.log("Browser regression passed on desktop and mobile");
+

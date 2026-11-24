@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "academicYear": "2026-2027",
+  "files": {
+    "metrics": "metrics.json",
+    "departments": "departments.json",
+    "projects": "projects.json",
+    "alumni": "alumni.json",
+    "cities": "cities.json"
+  },
+  "maintenance": {
+    "lastReviewed": "",
+    "reviewedBy": "",
+    "notes": "首次拆分沿用原型示例数据，正式发布前请核实并替换占位内容"
+  }
+}

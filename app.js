@@ -14,8 +14,23 @@ const state = {
 
 const app = {
   async init() {
-    const response = await fetch("./data/site-data.json");
-    state.data = await response.json();
+    const manifestResponse = await fetch("./data/manifest.json");
+    if (!manifestResponse.ok) throw new Error(`数据索引加载失败：${manifestResponse.status}`);
+    const manifest = await manifestResponse.json();
+    if (manifest.schemaVersion !== 1) throw new Error("不支持的数据结构版本");
+    const keys = ["metrics", "departments", "projects", "alumni", "cities"];
+    const datasets = await Promise.all(keys.map(async (key) => {
+      const filename = manifest.files?.[key];
+      if (typeof filename !== "string" || !/^[a-z-]+\.json$/.test(filename)) {
+        throw new Error(`无效的数据文件路径：${key}`);
+      }
+      const response = await fetch(`./data/${filename}`);
+      if (!response.ok) throw new Error(`无法加载 ${filename}：${response.status}`);
+      const payload = await response.json();
+      if (!Array.isArray(payload[key])) throw new Error(`数据格式错误：${key}`);
+      return payload[key];
+    }));
+    state.data = Object.fromEntries(keys.map((key, index) => [key, datasets[index]]));
     this.applyCanonicalLogo();
     this.setupIntro();
     this.renderMetrics();

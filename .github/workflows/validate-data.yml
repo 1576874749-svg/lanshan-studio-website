@@ -1,0 +1,41 @@
+name: Validate website data
+
+on:
+  push:
+    branches:
+      - main
+      - refactor/json-data-v1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate content data
+        run: npm run validate:data
+      - name: Build static site
+        run: npm run build
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Browser regression
+        run: node scripts/qa.mjs
+      - name: Upload QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-regression-evidence
+          path: qa/
+          if-no-files-found: ignore
